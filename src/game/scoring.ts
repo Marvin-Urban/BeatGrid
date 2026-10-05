@@ -18,14 +18,59 @@ export function patternFromGrid(grid: PlayerGrid, puzzle: Puzzle) {
   }
 }
 
-// Prototype cell accuracy. Only active challenge rows count toward the total.
+export type InstrumentScore = {
+  correct: number
+  missed: number
+  extra: number
+  targetHits: number
+  score: number
+}
+
+// Correctly empty cells have no value. Each active row earns its score from
+// target hits only; a zero-hit active row deterministically scores 0 because
+// there are no target hits to earn accuracy from.
 export function scoreGrid(grid: PlayerGrid, puzzle: Puzzle) {
   let correct = 0
+  let missed = 0
+  let extra = 0
+  let total = 0
+  const instrumentScores: Partial<Record<Instrument, InstrumentScore>> = {}
+
   for (const instrument of puzzle.activeInstruments) {
+    const targets = new Set(puzzleHits(puzzle, instrument).filter(step =>
+      Number.isInteger(step) && step >= 0 && step < puzzle.steps))
+    let instrumentCorrect = 0
+    let instrumentMissed = 0
+    let instrumentExtra = 0
+
     for (let step = 0; step < puzzle.steps; step++) {
-      if (grid[instrument][step] === puzzleHits(puzzle, instrument).includes(step)) correct++
+      const placed = Boolean(grid[instrument]?.[step])
+      const target = targets.has(step)
+      if (placed && target) instrumentCorrect++
+      else if (!placed && target) instrumentMissed++
+      else if (placed) instrumentExtra++
     }
+
+    const targetHits = targets.size
+    const score = targetHits === 0
+      ? 0
+      : Math.max(0, 1 - ((instrumentMissed + instrumentExtra) / targetHits))
+    instrumentScores[instrument] = {
+      correct: instrumentCorrect,
+      missed: instrumentMissed,
+      extra: instrumentExtra,
+      targetHits,
+      score,
+    }
+    correct += instrumentCorrect
+    missed += instrumentMissed
+    extra += instrumentExtra
+    total += targetHits
   }
-  const total = puzzle.activeInstruments.length * puzzle.steps
-  return { correct, total, percentage: (correct / total) * 100 }
+
+  const scores = puzzle.activeInstruments.map(instrument => instrumentScores[instrument]?.score ?? 0)
+  const percentage = scores.length === 0
+    ? 0
+    : (scores.reduce((sum, score) => sum + score, 0) / scores.length) * 100
+  return { correct, missed, extra, total, percentage, instrumentScores }
 }

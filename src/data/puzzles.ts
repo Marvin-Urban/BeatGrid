@@ -14,7 +14,7 @@ export type Puzzle = {
 
 export const difficulties: Difficulty[] = ['easy', 'normal', 'hard', 'insane']
 
-// All hit positions are zero-based. These eight grooves are original prototype
+// All hit positions are zero-based. These eight grooves are original BeatGrid
 // patterns and are not claimed to come from any particular song.
 export const puzzles: readonly Puzzle[] = [
   {

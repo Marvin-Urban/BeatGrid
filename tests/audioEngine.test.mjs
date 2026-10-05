@@ -46,6 +46,7 @@ async function setup({ failFetch = false, failResume = false } = {}) {
 const target = { kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] }
 const empty = { kick: [], snare: [], hat: [] }
 const flush = () => new Promise(resolve => setImmediate(resolve))
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds))
 function end(context) { context.sources.findLast(source => source.loop).onended() }
 
 test('target uses audio-clock sixteenths; repeated requests cannot overlap; buffers/context are reused', async () => {
@@ -149,6 +150,93 @@ test('native target loop is exactly one bar, remains active, and stops on cancel
   assert.equal(requests.length, 3)
 })
 
+test('whole-kit selection loads each kit once and reuses its decoded buffers', async () => {
+  const { engine, contexts, requests } = await setup()
+  assert.deepEqual(engine.drumKits, ['current', 'modern', 'warm', 'electronic', 'dry'])
+  const ctxSources = []
+
+  for (const kit of engine.drumKits) {
+    engine.setDrumKit(kit)
+    const before = contexts[0]?.sources.length ?? 0
+    const playing = engine.playPattern(empty, 120, 16)
+    await flush()
+    const ctx = contexts[0]
+    ctxSources.push(ctx.sources.length - before)
+    end(ctx)
+    await playing
+  }
+
+  assert.deepEqual(ctxSources, [1, 1, 1, 1, 1])
+  assert.equal(requests.length, 15)
+  for (const kit of engine.drumKits.slice(1)) {
+    assert.equal(requests.filter(url => url.includes(`/kits/${kit}/`)).length, 3)
+  }
+
+  engine.setDrumKit('current')
+  const replay = engine.playPattern(empty, 120, 16)
+  await flush()
+  end(contexts[0])
+  await replay
+  assert.equal(requests.length, 15)
+})
+
+test('dynamic target playback moves between one-shot and looping at exact bar boundaries without new sources', async () => {
+  const { engine, contexts } = await setup()
+  let count = 0
+  const playing = engine.playPattern(target, 120, 16, false, delta => { count += delta }, true)
+  await flush()
+  const ctx = contexts[0]
+  const sources = [...ctx.sources]
+  assert.equal(sources.length, 2) // one baked bar plus its silent completion marker
+  assert.ok(sources.every(source => source.loop))
+  assert.ok(sources.every(source => Math.abs(source.stops.at(-1) - 12.05) < 1e-9))
+
+  ctx.currentTime = 11
+  engine.setPatternLooping(true)
+  assert.equal(ctx.sources.length, 2)
+  assert.ok(sources.every(source => source.stops.at(-1) > 1000))
+
+  ctx.currentTime = 12.6
+  engine.setPatternLooping(false)
+  assert.equal(ctx.sources.length, 2)
+  assert.ok(sources.every(source => Math.abs(source.stops.at(-1) - 14.05) < 1e-9))
+
+  ctx.currentTime = 14.05
+  end(ctx)
+  await playing
+  assert.equal(count, 2)
+})
+
+test('a loop preference change during sample loading is applied before the first bar ends', async () => {
+  const { engine, contexts } = await setup()
+  const playing = engine.playPattern(target, 120, 16, false, undefined, true)
+  engine.setPatternLooping(true)
+  await flush()
+  const ctx = contexts[0]
+  assert.equal(ctx.sources.length, 2)
+  assert.ok(ctx.sources.every(source => source.stops.length === 0))
+  engine.stopPlayback()
+  await playing
+})
+
+test('beat callbacks follow the audio clock and stop with playback', async () => {
+  const { engine, contexts } = await setup()
+  const beats = []
+  const playing = engine.playPattern(target, 120, 16, true, undefined, false, beat => beats.push(beat))
+  await flush()
+  const ctx = contexts[0]
+  for (const time of [10.051, 10.551, 11.051, 11.551]) {
+    ctx.currentTime = time
+    await wait(40)
+  }
+  assert.deepEqual(beats, [1, 2, 3, 4])
+  engine.stopPlayback()
+  await playing
+  ctx.currentTime = 12.051
+  await wait(40)
+  assert.deepEqual(beats, [1, 2, 3, 4])
+})
+
 test('each audition schedules exactly one independent sample and reuses cached buffers', async () => {
   const { engine, contexts, requests } = await setup()
   for (const instrument of ['kick', 'snare', 'hat']) {
@@ -194,6 +282,45 @@ test('target count uses complete audio-clock bars and flushes all loop repetitio
   assert.equal(count, 3)
   engine.stopPlayback()
   assert.equal(count, 3) // no duplicate completion when stopping twice
+})
+
+test('rapid loop replacement leaves one scheduler and counts each completed bar once', async () => {
+  const { engine, contexts } = await setup()
+  let count = 0
+  const done = delta => { count += delta }
+  const first = engine.playPattern(target, 120, 16, true, done)
+  await flush()
+  const ctx = contexts[0]
+  const firstSources = [...ctx.sources]
+  ctx.currentTime = 12.05
+  engine.stopPlayback()
+  await first
+  assert.equal(count, 1)
+  assert.ok(firstSources.every(source => source.stops.length === 1))
+
+  const second = engine.playPattern(target, 120, 16, true, done)
+  await flush()
+  const sourceCount = ctx.sources.length
+  await engine.playPattern(target, 120, 16, true, done)
+  assert.equal(ctx.sources.length, sourceCount)
+  ctx.currentTime = 14.2
+  engine.stopPlayback()
+  await second
+  assert.equal(count, 2)
+})
+
+test('rapid auditions cancel the previous one-shot without touching pattern state', async () => {
+  const { engine, contexts } = await setup()
+  const first = engine.auditionInstrument('kick')
+  await flush()
+  const firstHit = contexts[0].sources.at(-1)
+  const second = engine.auditionInstrument('snare')
+  await flush()
+  const secondHit = contexts[0].sources.at(-1)
+  assert.equal(firstHit.stops.length, 1)
+  assert.notEqual(firstHit, secondHit)
+  secondHit.onended()
+  await Promise.all([first, second])
 })
 
 test('normal playback counts once; partial, failed and cancelled-loading playback never count', async () => {

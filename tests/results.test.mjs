@@ -40,19 +40,78 @@ test('selection stays in its pool and avoids an immediate repeat', () => {
   assert.notEqual(first.id, second.id)
 })
 
-test('scoring and player patterns use only active instruments', () => {
-  const easy = puzzlesForDifficulty('easy')[0]
-  const grid = createEmptyGrid(16)
-  grid.hat.fill(true)
-  const score = scoreGrid(grid, easy)
-  assert.equal(score.total, 32)
-  assert.equal(score.correct, 26)
-  assert.equal(patternFromGrid(grid, easy).hat.length, 0)
-
-  for (const instrument of easy.activeInstruments) {
-    for (const step of easy[instrument] ?? []) grid[instrument][step] = true
+function perfectGrid(puzzle) {
+  const grid = createEmptyGrid(puzzle.steps)
+  for (const instrument of puzzle.activeInstruments) {
+    for (const step of puzzle[instrument] ?? []) grid[instrument][step] = true
   }
-  assert.deepEqual(scoreGrid(grid, easy), { correct: 32, total: 32, percentage: 100 })
+  return grid
+}
+
+test('blank attempts score 0 and perfect attempts score 100 across active-row counts', () => {
+  const easy = puzzlesForDifficulty('easy')[0]
+  const normal = puzzlesForDifficulty('normal')[0]
+  assert.equal(scoreGrid(createEmptyGrid(16), easy).percentage, 0)
+  assert.equal(scoreGrid(createEmptyGrid(16), normal).percentage, 0)
+  assert.equal(scoreGrid(perfectGrid(easy), easy).percentage, 100)
+  assert.equal(scoreGrid(perfectGrid(normal), normal).percentage, 100)
+})
+
+test('misses and extras penalize only their active instrument, and misplaced hits count as both', () => {
+  const easy = puzzlesForDifficulty('easy')[0]
+
+  const missed = perfectGrid(easy)
+  missed.kick[0] = false
+  const missedScore = scoreGrid(missed, easy)
+  assert.equal(missedScore.percentage, 87.5)
+  assert.equal(missedScore.instrumentScores.kick.score, 0.75)
+  assert.equal(missedScore.instrumentScores.snare.score, 1)
+  assert.equal(missedScore.missed, 1)
+  assert.equal(missedScore.extra, 0)
+
+  const extra = perfectGrid(easy)
+  extra.kick[1] = true
+  const extraScore = scoreGrid(extra, easy)
+  assert.equal(extraScore.percentage, 87.5)
+  assert.equal(extraScore.instrumentScores.kick.score, 0.75)
+  assert.equal(extraScore.instrumentScores.snare.score, 1)
+  assert.equal(extraScore.missed, 0)
+  assert.equal(extraScore.extra, 1)
+
+  const misplaced = perfectGrid(easy)
+  misplaced.kick[0] = false
+  misplaced.kick[1] = true
+  const misplacedScore = scoreGrid(misplaced, easy)
+  assert.equal(misplacedScore.percentage, 75)
+  assert.equal(misplacedScore.missed, 1)
+  assert.equal(misplacedScore.extra, 1)
+})
+
+test('inactive rows never affect scoring or playback patterns, and scores clamp at zero', () => {
+  const easy = puzzlesForDifficulty('easy')[0]
+  const perfect = perfectGrid(easy)
+  perfect.hat.fill(true)
+  assert.equal(scoreGrid(perfect, easy).percentage, 100)
+  assert.equal(patternFromGrid(perfect, easy).hat.length, 0)
+
+  const overloaded = createEmptyGrid(16)
+  overloaded.kick.fill(true)
+  overloaded.snare.fill(true)
+  const score = scoreGrid(overloaded, easy)
+  assert.equal(score.percentage, 0)
+  assert.equal(score.instrumentScores.kick.score, 0)
+  assert.equal(score.instrumentScores.snare.score, 0)
+})
+
+test('a zero-target active row scores zero rather than dividing by zero or rewarding silence', () => {
+  const puzzle = {
+    id: 'edge-zero-row', difficulty: 'easy', bpm: 100, steps: 16,
+    activeInstruments: ['kick', 'snare'], kick: [], snare: [4],
+  }
+  const score = scoreGrid(perfectGrid(puzzle), puzzle)
+  assert.equal(score.percentage, 50)
+  assert.equal(score.instrumentScores.kick.score, 0)
+  assert.equal(score.instrumentScores.kick.targetHits, 0)
 })
 
 test('personal best records only improve after a perfect round', () => {

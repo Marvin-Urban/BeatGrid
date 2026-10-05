@@ -1,8 +1,64 @@
-:root { font-family: Inter, 'Segoe UI', sans-serif; color: #edf0f5; background: #101217; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+:root {
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  color: #eef2f7;
+  background: #0c0f14;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+
+  --bg: #0c0f14;
+  --panel: #171b23;
+  --surface: #222832;
+  --surface-raised: #272e39;
+  --surface-hover: #303946;
+  --border: #333b47;
+  --border-strong: #4a5666;
+  --border-bright: #758398;
+  --text: #eef2f7;
+  --muted: #a4adba;
+  --muted-dim: #778292;
+  --primary: #c5f16a;
+  --primary-bright: #d0fa7b;
+  --primary-soft: #bee486;
+  --primary-ink: #17200c;
+  --space-4: 16px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --shadow-panel: 0 24px 72px #0005;
+}
+
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 360px; }
-button, a { -webkit-tap-highlight-color: transparent; }
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% -20%, #1b2430 0, transparent 42%),
+    linear-gradient(180deg, #0f1218 0%, var(--bg) 68%);
+  color: var(--text);
+}
+
+button,
+a { -webkit-tap-highlight-color: transparent; }
+
 button { font: inherit; }
-button:focus-visible, a:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
-button { cursor: pointer; }
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--primary-bright);
+  outline-offset: 3px;
+}
+
 button:disabled { cursor: not-allowed; }
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 34%, transparent);
+  color: var(--text);
+}

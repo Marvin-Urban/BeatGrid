@@ -1,9 +1,9 @@
 # BeatGrid - Full Project Brief
 
 **Document status:** Active planning baseline  
-**Date:** 4 October 2026  
-**Current implementation target:** **Configure and playtest the completed Milestone 7 prototype**
-**Completed:** **Milestones 1-7**
+**Date:** 5 October 2026
+**Current implementation target:** **Playtest the production-ready Milestone 8 quality pass**
+**Completed:** **Milestones 1-8**
 **Primary purpose:** Give Codex and future contributors enough context to understand the intended full game while only implementing the milestone or task explicitly requested in the current prompt.
 
 ---
@@ -297,8 +297,10 @@ Prefer React, TypeScript, browser APIs, and small purpose-built modules. Do not 
 - Hard difficulty: the previous Normal patterns.
 - Insane difficulty: the previous Hard patterns.
 - Target listening during memorisation: unlimited.
+- Loop Target: a persistent Memorise preference; Listen starts either one bar or a continuous loop without changing the preference.
 - Start Recreating: disabled until one target bar has completed.
 - Fewer target listens: shown as a per-puzzle personal best only after 100% accuracy.
+- Rhythm accuracy: average of per-active-instrument hit scores; correctly empty cells have no value.
 - Memory bonus: removed; extra listens do not reduce rhythm accuracy.
 - Target access after committing to recreate: disabled for the rest of the attempt.
 - Player recreation: loops by default during Recreate and may be stopped or restarted freely.
@@ -312,6 +314,7 @@ Prefer React, TypeScript, browser APIs, and small purpose-built modules. Do not 
 - Commercial song audio: not required for the core game.
 - Current version: desktop-first, local-gameplay focused, with optional remote attempt persistence.
 - Automatic beat detection/transcription: not required for early development.
+- Drum-kit audition: a temporary local developer selector provides five whole-kit sound directions and is not part of the intended player experience.
 
 ---
 
@@ -512,21 +515,57 @@ Implemented:
 
 ---
 
-## 12. Scoring Direction
+## 11.3 Milestone 8 - Stability, Game Feel & Visual Polish - COMPLETE
 
-Scoring remains intentionally tunable.
+Milestone 8 treated the deployed game as a product-quality experience and added no major gameplay features.
+
+Implemented:
+
+- fixed the Loop Target / Listen bug by separating the persistent loop preference from active playback state
+- made one-shot target playback transition seamlessly into looping when Loop Target is enabled mid-bar, and made disabling it finish the current bar before stopping
+- kept those transitions on one Web Audio clock source so they do not restart, overlap, or introduce a JavaScript-timer gap
+- hardened playback and audition coordination against rapid clicks, stale async completions, phase changes, difficulty and puzzle changes, and round resets
+- preserved exact completed-bar listen counting through live loop changes and prevented repeated Listen presses from duplicating playback
+- made the in-round difficulty badge a compact keyboard-accessible popover that safely stops audio and starts a fresh round at the chosen difficulty
+- removed internal puzzle IDs from the player-facing interface
+- gave step 1 a persistent neon-green identity while retaining the four-beat hierarchy at steps 1, 5, 9, and 13
+- synchronized a restrained panel-outline visual metronome to the Web Audio clock, with a stronger green downbeat, faint neutral beats 2-4, immediate stop behavior, and reduced-motion support
+- added regression coverage for seamless live loop transitions, changes made while samples load, audio-clock beat callbacks, rapid loop replacement, and rapid instrument auditions
+- polished difficulty choices, Memorise controls, Recreate controls, the grid, Reveal results, and personal-best presentation
+- consolidated typography, spacing, color, border, focus, disabled, pressed, hover, and playing states into a coherent visual system
+- added restrained CSS transitions and animations with `prefers-reduced-motion` support
+- improved desktop and narrow-window behavior while keeping the sequencer usable through contained horizontal scrolling
+- lazy-loaded the Supabase persistence client to reduce initial game startup work without changing persistence behavior
+- validated the production build and bundled audio asset paths without adding deployment infrastructure
+
+---
+
+## 11.4 Focused Scoring + Drum-Kit Audition Follow-up - COMPLETE
+
+- removed correctly empty cells from rhythm accuracy
+- calculated each active instrument as `max(0, 1 - ((missed hits + extra hits) / target hits))`
+- averaged active instrument scores so Easy uses two rows and the other difficulties use three
+- made blank reconstructions score 0%, while perfect reconstructions remain exactly 100%
+- treated a defensive zero-target active row as 0% because there are no target hits from which to earn accuracy
+- added a temporary local developer selector for Current, Modern, Warm, Electronic, and Dry whole-kit auditioning
+- kept kit selection out of puzzle, scoring, timing, listen-count, and backend data
+- stored the temporary kit preference only in localStorage; the selector is not part of the final player experience
+
+---
+
+## 12. Scoring Direction
 
 ### Primary score: rhythm accuracy
 
-Possible metrics include:
+Correctly empty cells contribute nothing. For each active instrument:
 
-- correctly placed hits
-- missed target hits
-- extra incorrect hits
-- exact cell accuracy
-- step-level accuracy
+`instrumentScore = max(0, 1 - ((missedHits + extraHits) / targetHits))`
 
-Avoid a metric that over-rewards correctly empty cells if that makes sparse beats appear easier than they should be.
+Final rhythm accuracy is the average of all active instrument scores multiplied
+by 100. A misplaced hit produces one miss and one extra. Inactive rows never
+participate. A defensive active row with zero target hits scores 0 rather than
+dividing by zero or rewarding silence. Current handcrafted puzzles all contain
+target hits in every active row.
 
 ### Secondary stat: listen performance
 
@@ -705,30 +744,27 @@ Do not install these merely because they may appear in future planning:
 
 The exact milestone numbering may evolve, but the intended order is:
 
-### Milestones 1-7 - COMPLETE
+### Milestones 1-8 - COMPLETE
 
 Foundation, Web Audio, memory/recreation flow, the complete local round,
 interaction refinements, Easy/Normal/Hard/Insane, eight handcrafted puzzles,
 active-row scoring, loop-by-default player playback, playtest copy cleanup,
 local perfect-round listen records, removal of Similar Song from the active
-round, and a private Supabase attempt-storage foundation.
+round, a private Supabase attempt-storage foundation, and a production-focused
+stability and visual-polish pass.
 
-### Next: Local playtesting and tuning
-
-- test whether the eight grooves and four modes feel appropriately distinct
-- tune puzzle patterns and sample levels
-- decide from playtesting whether scoring should change or gain a difficulty modifier
-- configure and observe anonymous attempt persistence before building public features
-
-### Later: Daily/Persistence
-
-Only after the game is fun locally:
+### Next: Daily puzzle / persistence expansion
 
 - daily puzzle selection
-- backend scoring
-- persistence
+- date-based completion persistence
+- continued validation of anonymous attempt storage
+- clear offline and retry behavior
+
+### Later: Leaderboards / streaks / sharing
+
 - streaks
-- optional leaderboard
+- per-puzzle and daily leaderboards
+- shareable results
 - anti-cheat improvements
 
 ### Later: Content Scaling

@@ -1,15 +1,41 @@
 import type { Instrument } from '../data/puzzles'
 
 export type AudioPattern = Record<Instrument, readonly number[]>
+export type PlaybackBeat = 1 | 2 | 3 | 4
+export const drumKits = ['current', 'modern', 'warm', 'electronic', 'dry'] as const
+export type DrumKit = typeof drumKits[number]
 const instruments: Instrument[] = ['kick', 'snare', 'hat']
-const sampleUrls: Record<Instrument, URL> = {
-  kick: new URL('../assets/audio/kick.wav', import.meta.url),
-  snare: new URL('../assets/audio/snare.wav', import.meta.url),
-  hat: new URL('../assets/audio/hat.wav', import.meta.url),
+const sampleUrls: Record<DrumKit, Record<Instrument, URL>> = {
+  current: {
+    kick: new URL('../assets/audio/kick.wav', import.meta.url),
+    snare: new URL('../assets/audio/snare.wav', import.meta.url),
+    hat: new URL('../assets/audio/hat.wav', import.meta.url),
+  },
+  modern: {
+    kick: new URL('../assets/audio/kits/modern/kick.wav', import.meta.url),
+    snare: new URL('../assets/audio/kits/modern/snare.wav', import.meta.url),
+    hat: new URL('../assets/audio/kits/modern/hat.wav', import.meta.url),
+  },
+  warm: {
+    kick: new URL('../assets/audio/kits/warm/kick.wav', import.meta.url),
+    snare: new URL('../assets/audio/kits/warm/snare.wav', import.meta.url),
+    hat: new URL('../assets/audio/kits/warm/hat.wav', import.meta.url),
+  },
+  electronic: {
+    kick: new URL('../assets/audio/kits/electronic/kick.wav', import.meta.url),
+    snare: new URL('../assets/audio/kits/electronic/snare.wav', import.meta.url),
+    hat: new URL('../assets/audio/kits/electronic/hat.wav', import.meta.url),
+  },
+  dry: {
+    kick: new URL('../assets/audio/kits/dry/kick.wav', import.meta.url),
+    snare: new URL('../assets/audio/kits/dry/snare.wav', import.meta.url),
+    hat: new URL('../assets/audio/kits/dry/hat.wav', import.meta.url),
+  },
 }
 
 let context: AudioContext | undefined
-let samples: Promise<Record<Instrument, AudioBuffer>> | undefined
+const sampleCache = new Map<DrumKit, Promise<Record<Instrument, AudioBuffer>>>()
+let activeDrumKit: DrumKit = 'current'
 let busy = false
 let generation = 0
 let activeSources: AudioBufferSourceNode[] = []
@@ -19,6 +45,8 @@ let auditionGeneration = 0
 let finishPlayback: (() => void) | undefined
 let reportCompletedBars: (() => void) | undefined
 let progressTimer: ReturnType<typeof setInterval> | undefined
+let updatePatternLooping: ((enabled: boolean) => void) | undefined
+let pendingPatternLooping: boolean | undefined
 
 function getContext() {
   if (!context) {
@@ -30,19 +58,26 @@ function getContext() {
   return context
 }
 
-function loadSamples(audio: AudioContext) {
-  // Cache the promise too, so concurrent requests cannot duplicate loading.
-  samples ??= Promise.all(instruments.map(async instrument => {
-    const response = await fetch(sampleUrls[instrument], { signal: AbortSignal.timeout(10000) })
+function loadSamples(audio: AudioContext, kit: DrumKit) {
+  const cached = sampleCache.get(kit)
+  if (cached) return cached
+  // Cache each kit's promise too, so concurrent requests cannot duplicate loading.
+  const loading = Promise.all(instruments.map(async instrument => {
+    const response = await fetch(sampleUrls[kit][instrument], { signal: AbortSignal.timeout(10000) })
     if (!response.ok) throw new Error(`Could not load the ${instrument} sample.`)
     const buffer = await audio.decodeAudioData(await response.arrayBuffer())
     return [instrument, buffer] as const
   })).then(entries => Object.fromEntries(entries) as Record<Instrument, AudioBuffer>)
     .catch(() => {
-      samples = undefined // A later click may retry a failed load.
+      sampleCache.delete(kit) // A later click may retry a failed load.
       throw new Error('Drum samples could not load. Check your connection and try again.')
     })
-  return samples
+  sampleCache.set(kit, loading)
+  return loading
+}
+
+export function setDrumKit(kit: DrumKit) {
+  activeDrumKit = kit
 }
 
 function stopAuditions() {
@@ -65,13 +100,13 @@ async function resumeContext(audio: AudioContext) {
     await Promise.race([
       audio.resume(),
       new Promise<never>((_, reject) => {
-        deadline = setTimeout(() => reject(new Error('Audio could not start. Click Listen or Preview to try again.')), 8000)
+        deadline = setTimeout(() => reject(new Error('Audio could not start. Try the playback control again.')), 8000)
       }),
     ])
   } finally {
     clearTimeout(deadline)
   }
-  if (!isRunning()) throw new Error('Audio is paused. Click Listen or Preview to try again.')
+  if (!isRunning()) throw new Error('Audio is paused. Try the playback control again.')
 }
 
 export function stopPlayback() {
@@ -79,6 +114,8 @@ export function stopPlayback() {
   reportCompletedBars = undefined
   clearInterval(progressTimer)
   progressTimer = undefined
+  updatePatternLooping = undefined
+  pendingPatternLooping = undefined
   generation++
   for (const source of activeSources) {
     source.onended = null
@@ -92,8 +129,23 @@ export function stopPlayback() {
   busy = false
 }
 
+// Changes a dynamic target playback at its next bar boundary. Calls made while
+// samples are still loading are retained and applied before playback begins.
+export function setPatternLooping(enabled: boolean) {
+  if (updatePatternLooping) updatePatternLooping(enabled)
+  else if (busy) pendingPatternLooping = enabled
+}
+
 // Resolves after one complete bar (including the last sound's tail), or on Reset.
-export async function playPattern(pattern: AudioPattern, bpm: number, steps: number, loop = false, onCompletedBars?: (count: number) => void) {
+export async function playPattern(
+  pattern: AudioPattern,
+  bpm: number,
+  steps: number,
+  loop = false,
+  onCompletedBars?: (count: number) => void,
+  allowLoopChanges = false,
+  onBeat?: (beat: PlaybackBeat) => void,
+) {
   if (busy) return
   if (!Number.isFinite(bpm) || bpm <= 0 || !Number.isInteger(steps) || steps <= 0) {
     throw new Error('This puzzle has invalid playback timing.')
@@ -106,20 +158,27 @@ export async function playPattern(pattern: AudioPattern, bpm: number, steps: num
   try {
     // Context creation and resume happen before the first await, in the click gesture.
     audio = getContext()
-    const [, buffers] = await Promise.all([resumeContext(audio), loadSamples(audio)])
+    const kit = activeDrumKit
+    const [, buffers] = await Promise.all([resumeContext(audio), loadSamples(audio, kit)])
     if (request !== generation) return
     if (audio.state !== 'running') {
-      throw new Error('Audio was interrupted while loading. Click Listen or Preview to try again.')
+      throw new Error('Audio was interrupted while loading. Try the playback control again.')
     }
 
     const startTime = audio.currentTime + 0.05
     const stepInterval = 60 / bpm / 4
+    const beatDuration = stepInterval * 4
+    const usesLoopBuffer = loop || allowLoopChanges
+    let effectiveLooping = allowLoopChanges ? pendingPatternLooping ?? loop : loop
+    pendingPatternLooping = undefined
     let endTime = startTime + steps * stepInterval
+    let scheduledStopTime: number | undefined
+    let periodicSource: AudioBufferSourceNode | undefined
     output = audio.createGain()
     output.gain.value = 0.55
     output.connect(audio.destination)
 
-    if (loop) {
+    if (usesLoopBuffer) {
       // Bake one periodic bar from cached samples. Native buffer looping keeps
       // every repetition on the audio clock, with no JS timer or restart gap.
       const frames = Math.round(steps * stepInterval * audio.sampleRate)
@@ -137,12 +196,12 @@ export async function playPattern(pattern: AudioPattern, bpm: number, steps: num
           }
         }
       }
-      const source = audio.createBufferSource()
-      source.buffer = bar
-      source.loop = true
-      source.connect(output)
-      activeSources.push(source)
-      source.start(startTime)
+      periodicSource = audio.createBufferSource()
+      periodicSource.buffer = bar
+      periodicSource.loop = true
+      periodicSource.connect(output)
+      activeSources.push(periodicSource)
+      periodicSource.start(startTime)
     } else for (const instrument of instruments) {
       for (const step of pattern[instrument]) {
         if (!Number.isInteger(step) || step < 0 || step >= steps) continue
@@ -156,22 +215,36 @@ export async function playPattern(pattern: AudioPattern, bpm: number, steps: num
       }
     }
 
-    if (onCompletedBars) {
-      const barDuration = loop
-        ? Math.round(steps * stepInterval * audio.sampleRate) / audio.sampleRate
-        : steps * stepInterval
+    const barDuration = usesLoopBuffer
+      ? Math.round(steps * stepInterval * audio.sampleRate) / audio.sampleRate
+      : steps * stepInterval
+    let reportedBeat = -1
+    if (onCompletedBars || onBeat) {
       let reported = 0
       reportCompletedBars = () => {
         const elapsed = Math.max(0, audio!.currentTime - startTime)
-        const complete = Math.min(loop ? Infinity : 1, Math.floor((elapsed + 1e-9) / barDuration))
-        if (complete > reported) {
+        const complete = Math.min(usesLoopBuffer ? Infinity : 1, Math.floor((elapsed + 1e-9) / barDuration))
+        if (onCompletedBars && complete > reported) {
           const delta = complete - reported
           reported = complete
           onCompletedBars(delta)
         }
       }
-      // UI bookkeeping only: reads the audio clock; never starts or schedules hits.
-      progressTimer = setInterval(reportCompletedBars, 50)
+      const reportProgress = () => {
+        reportCompletedBars?.()
+        if (!onBeat || audio!.currentTime + 1e-9 < startTime) return
+        const visualStopTime = allowLoopChanges
+          ? scheduledStopTime
+          : loop ? undefined : startTime + barDuration
+        if (visualStopTime !== undefined && audio!.currentTime + 1e-9 >= visualStopTime) return
+        const beatIndex = Math.floor((audio!.currentTime - startTime + 1e-9) / beatDuration)
+        if (beatIndex > reportedBeat) {
+          reportedBeat = beatIndex
+          onBeat((beatIndex % 4 + 1) as PlaybackBeat)
+        }
+      }
+      // UI bookkeeping only: it reads the audio clock and never schedules hits.
+      progressTimer = setInterval(reportProgress, 25)
     }
 
     // A silent source marks completion on the audio clock, even for an empty grid.
@@ -185,12 +258,38 @@ export async function playPattern(pattern: AudioPattern, bpm: number, steps: num
       endMarker.onended = () => resolve()
       onStateChange = () => {
         if (audio!.state !== 'running') {
-          reject(new Error('Audio was interrupted. Click Listen or Preview to try again.'))
+          reject(new Error('Audio was interrupted. Try the playback control again.'))
         }
       }
       audio!.addEventListener('statechange', onStateChange)
       endMarker.start(startTime)
-      if (!loop) endMarker.stop(endTime)
+      if (allowLoopChanges && periodicSource) {
+        const dynamicSources = [periodicSource, endMarker]
+        const scheduleAtNextBoundary = () => {
+          const elapsed = Math.max(0, audio!.currentTime - startTime)
+          const nextBar = Math.floor((elapsed + 1e-9) / barDuration) + 1
+          scheduledStopTime = startTime + nextBar * barDuration
+          for (const source of dynamicSources) source.stop(scheduledStopTime)
+        }
+        const continueLooping = () => {
+          scheduledStopTime = undefined
+          // AudioScheduledSourceNode uses the latest stop call. Moving an
+          // existing boundary stop far ahead keeps the same source in flight,
+          // so there is no restart, overlap, or JavaScript-timer gap.
+          const distantStop = startTime + barDuration * 1_000_000
+          for (const source of dynamicSources) source.stop(distantStop)
+        }
+        updatePatternLooping = enabled => {
+          if (request !== generation || enabled === effectiveLooping) return
+          effectiveLooping = enabled
+          if (enabled) continueLooping()
+          else scheduleAtNextBoundary()
+        }
+        if (!effectiveLooping) scheduleAtNextBoundary()
+      } else if (!loop) {
+        scheduledStopTime = endTime
+        endMarker.stop(endTime)
+      }
     })
   } finally {
     if (audio && onStateChange) audio.removeEventListener('statechange', onStateChange)
@@ -207,7 +306,8 @@ export async function auditionInstrument(instrument: Instrument) {
   stopAuditions()
   const request = auditionGeneration
   const audio = getContext()
-  const [, buffers] = await Promise.all([resumeContext(audio), loadSamples(audio)])
+  const kit = activeDrumKit
+  const [, buffers] = await Promise.all([resumeContext(audio), loadSamples(audio, kit)])
   if (request !== auditionGeneration) return
   if (audio.state !== 'running') {
     throw new Error('Audio was interrupted while loading. Try the sound again.')

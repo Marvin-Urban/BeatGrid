@@ -1,6 +1,6 @@
 # BeatGrid
 
-BeatGrid is a React + TypeScript + Vite rhythm-memory prototype. Its current round is:
+BeatGrid is a React + TypeScript + Vite rhythm-memory game. Its current round is:
 
 **Difficulty Select → Memorise → Recreate → Reveal**
 
