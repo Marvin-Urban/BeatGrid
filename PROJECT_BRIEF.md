@@ -2,22 +2,21 @@
 
 **Document status:** Active planning baseline  
 **Date:** 4 October 2026  
-**Current implementation target:** **Milestone 4 - Complete Core Round + Interaction Refinements**  
-**Completed:** **Milestones 1-3**  
+**Current implementation target:** **Configure and playtest the completed Milestone 7 prototype**
+**Completed:** **Milestones 1-7**
 **Primary purpose:** Give Codex and future contributors enough context to understand the intended full game while only implementing the milestone or task explicitly requested in the current prompt.
 
 ---
 
 ## 1. Executive Summary
 
-BeatGrid is a browser-based rhythm memory microgame. The player hears a short drum beat, commits it to memory, recreates it on a step grid, optionally names a song that uses the same or a similar groove, and then receives a reveal showing rhythm accuracy and bonus results.
+BeatGrid is a browser-based rhythm memory microgame. The player hears a short drum beat, commits it to memory, recreates it on a step grid, and then receives a reveal showing rhythm accuracy and listen performance.
 
 The intended normal round is:
 
 1. **Memorise** - listen to the target beat as many times as desired. The target may be looped.
 2. **Recreate** - commit to the attempt, lose access to the target, and rebuild it from memory on the grid.
-3. **Similar-song bonus** - optionally name a song that uses the same or a meaningfully similar beat/groove.
-4. **Reveal** - show reconstruction accuracy, the correct beat, target-listen efficiency, and the similar-song bonus result.
+3. **Reveal** - show reconstruction accuracy, the correct beat, and target-listen performance.
 
 The target audio is BeatGrid's own drum rendering of a handcrafted rhythm pattern, not a commercial song recording. This keeps the core game focused on rhythm and avoids making licensed music playback a requirement.
 
@@ -38,8 +37,7 @@ A new player should understand the round within seconds:
 3. Press **Start Recreating** when ready.
 4. Rebuild the groove from memory.
 5. Listen to the player's own recreation as much as needed.
-6. Optionally enter a song that uses the same or a similar groove.
-7. Reveal accuracy and results.
+6. Submit the reconstruction and reveal accuracy and results.
 
 The key skill is not merely copying a visible or continuously available target. The player must decide when they have listened enough and then reproduce the pattern from memory.
 
@@ -52,7 +50,6 @@ The key skill is not merely copying a visible or continuously available target. 
 - Tight, satisfying audio timing.
 - Clear interaction for non-musicians.
 - Difficulty settings that genuinely change cognitive load.
-- A bonus challenge based on recognising a song with a similar groove, without pretending that one rhythm uniquely belongs to one song.
 - Easy to watch on stream or in short-form video.
 - Strong "one more puzzle" potential.
 - Clean enough to work on desktop and, later, mobile.
@@ -65,7 +62,7 @@ BeatGrid is not intended to become a full drum sequencer, DAW, music-learning su
 
 ## 3. Core Game Loop
 
-The four-part loop below is the intended identity of BeatGrid.
+The three-part loop below is the intended identity of BeatGrid.
 
 ### 3.1 Memorise the target
 
@@ -79,7 +76,8 @@ Rules:
 - Each completed loop repetition also counts as another target listen.
 - Instrument one-shot previews do not count as target listens.
 - Playback of the player's own recreation does not count as a target listen.
-- There is no hard listen limit; fewer listens are rewarded rather than extra listens being forbidden.
+- There is no hard listen limit or score penalty for extra listens.
+- Start Recreating remains disabled until one full target bar has completed.
 
 The player decides when they are ready and presses **Start Recreating** / **I'm Ready**.
 
@@ -98,46 +96,22 @@ The default long-term UX should make the player's recreation **loop automaticall
 
 The player must never regain access to the target during the same attempt simply by pressing another playback control.
 
-### 3.3 Similar-song bonus
+### 3.3 Reveal
 
-The bonus question should not ask the player to identify one supposedly unique source song.
-
-Instead, the intended prompt is conceptually:
-
-> **Do you know a song with the same or a similar beat?**
-
-Rationale:
-
-- common drum grooves are reused across many songs
-- a beat may reasonably match more than one song
-- treating one arbitrarily chosen song as the only correct answer would often feel unfair
-
-The bonus should therefore support **multiple accepted answers**.
-
-Early versions should use a curated list of accepted examples for each puzzle. A player may skip the bonus.
-
-If a player's answer is not in the curated list, the UI should avoid implying with certainty that the song has no similar beat. Prefer wording such as "Not matched in our accepted answers" unless the game has a stronger validation system.
-
-### 3.4 Reveal
-
-Only after the player has submitted the reconstruction and completed or skipped the similar-song bonus should the game reveal:
+Submitting the reconstruction stops player playback, freezes the grid, and moves directly to Reveal. Reveal shows:
 
 - the correct beat pattern
 - the player's rhythm accuracy
 - missed target hits
 - extra incorrect hits
 - target listen count
-- memory-efficiency bonus
-- accepted example songs for the groove
-- whether the player's submitted song matched an accepted answer
-
-Rhythm correctness should not be revealed before the bonus opportunity if that information could influence the player's answer.
+- personal best for the fewest listens used on a perfect rhythm attempt
 
 ---
 
 ## 4. Difficulty Design
 
-BeatGrid should eventually provide three clear difficulty settings.
+BeatGrid provides four clear difficulty settings.
 
 Difficulty should use a **mixed approach**: change both the number of active drum parts and the intrinsic complexity of the rhythm.
 
@@ -154,26 +128,33 @@ The Hi-Hat row should be absent or clearly inactive rather than presenting a fak
 ### Normal
 
 - **3 active instruments:** Kick + Snare + Hi-Hat
-- common, readable grooves
-- moderate density
-- some off-beat or syncopated elements, but still approachable
+- Kick and Snare remain about as simple as Easy
+- the added Hi-Hat row creates the main extra memory challenge
+- common, readable grooves with limited syncopation
 
 ### Hard
 
 - **3 active instruments:** Kick + Snare + Hi-Hat
+- uses the patterns previously classified as Normal
+- approachable syncopation and moderate density
+
+### Insane
+
+- **3 active instruments:** Kick + Snare + Hi-Hat
+- uses the patterns previously classified as Hard
 - rhythmically more complex patterns
 - more syncopation
 - less obvious kick placement
 - more demanding hi-hat patterns
 - potentially denser or less repetitive grooves
 
-Hard should not simply mean "more instruments forever." Three rows are enough to give BeatGrid a compact and recognisable identity.
+Insane should not simply mean "more instruments forever." Three rows are enough to give BeatGrid a compact and recognisable identity.
 
 ### Difficulty and scoring
 
 Accuracy should remain the main measure of performance.
 
-Later scoring may apply a modest difficulty modifier so that an equally accurate Hard attempt is worth more than an Easy attempt, but the exact formula should remain tunable until playtesting provides evidence.
+No difficulty multiplier is currently used. Playtesting should determine whether one is ever warranted.
 
 ---
 
@@ -231,20 +212,13 @@ Audio scheduling should continue to use the Web Audio clock rather than JavaScri
 
 ---
 
-## 6. Memory-Efficiency Reward
+## 6. Listen Performance and Personal Records
 
-Listening remains unlimited, but using fewer target listens should be rewarded.
+Listening remains unlimited. Target listens are a performance stat, not a score component.
 
 ### Principle
 
-A player who recreates a beat accurately after three target listens has demonstrated stronger memory performance than a player who needs ten target listens.
-
-However:
-
-- accuracy remains the primary score
-- listen efficiency is a secondary bonus
-- extra listens never prevent completion
-- the system should encourage skill without punishing accessibility
+Accuracy is the only rhythm score. A player who reaches 100% accuracy can also set a per-puzzle personal record for the fewest completed target listens.
 
 ### Target-listen counting
 
@@ -262,38 +236,24 @@ Do not count:
 
 Freeze the listen count when the player enters the Recreate phase.
 
-### Provisional memory bonus
+### Local personal best
 
-The exact values are **tunable**. An initial prototype may use:
-
-| Target listens | Memory bonus |
-| --- | ---: |
-| 1 | +10 |
-| 2 | +8 |
-| 3 | +6 |
-| 4-5 | +4 |
-| 6-7 | +2 |
-| 8+ | +0 |
-
-Keep this logic isolated in a function such as `calculateMemoryBonus(listenCount)` so it can be changed easily after playtesting.
-
-Do not hide the components of the result. A reveal may show, for example:
-
-```text
-Rhythm Accuracy: 91.7%
-Target Listens: 3
-Memory Bonus: +6
-```
-
-A future combined score may also include a difficulty modifier, but the formula is not locked yet.
+- Store the record under `beatgrid.bestListens.<puzzleId>` in `localStorage`.
+- Create or improve a record only when rhythm accuracy is exactly 100%.
+- Imperfect attempts never create or update a record.
+- A worse or equal perfect attempt never replaces a better record.
+- Records persist across rounds and page reloads; ordinary round state resets.
+- The storage boundary should remain replaceable so a future leaderboard can use a backend without rewriting round logic.
+- Completed attempts may also be stored in Supabase when configured, but the current display continues to use the local record.
+- No public or global leaderboard is part of the prototype.
 
 ---
 
 ## 7. Product Principles
 
-### 7.1 Prove fun before infrastructure
+### 7.1 Add infrastructure in measured steps
 
-Do not build databases, authentication, leaderboards, automated transcription, admin systems, deployment pipelines, or commercial-song integrations until the core loop has been tested with real players.
+Supabase now provides a small persistence foundation for completed attempts. Daily puzzles, global leaderboards, visible accounts, admin systems, deployment pipelines, and commercial-song integrations remain deferred.
 
 ### 7.2 Hand-curated quality beats automated quantity
 
@@ -313,11 +273,11 @@ The target should be freely available during memorisation, then unavailable once
 
 ### 7.6 Reveal information at the right time
 
-The player's rhythm accuracy and bonus outcome should be revealed only after the player has finished the reconstruction and had the opportunity to answer or skip the similar-song bonus.
+The player's rhythm accuracy should be revealed only after the player submits the reconstruction.
 
 ### 7.7 Build in replaceable layers
 
-Puzzle data, accepted-song metadata, scoring, audio playback, and UI should be separated enough that local prototype implementations can later be replaced by server-backed versions without rewriting the whole app.
+Puzzle data, scoring, audio playback, persistence, and UI should be separated enough that implementations can be replaced without rewriting the whole app.
 
 ### 7.8 Avoid unnecessary dependencies
 
@@ -333,19 +293,24 @@ Prefer React, TypeScript, browser APIs, and small purpose-built modules. Do not 
 - Default grid resolution: 16 sixteenth-note steps across one 4/4 bar.
 - Core instrument set: Kick, Snare, Hi-Hat.
 - Easy difficulty: Kick + Snare only.
-- Normal difficulty: Kick + Snare + Hi-Hat with approachable grooves.
-- Hard difficulty: Kick + Snare + Hi-Hat with more complex grooves.
+- Normal difficulty: Easy-like Kick + Snare plus a straightforward Hi-Hat part.
+- Hard difficulty: the previous Normal patterns.
+- Insane difficulty: the previous Hard patterns.
 - Target listening during memorisation: unlimited.
-- Fewer target listens: rewarded with a secondary memory bonus.
+- Start Recreating: disabled until one target bar has completed.
+- Fewer target listens: shown as a per-puzzle personal best only after 100% accuracy.
+- Memory bonus: removed; extra listens do not reduce rhythm accuracy.
 - Target access after committing to recreate: disabled for the rest of the attempt.
-- Player recreation: may be replayed freely and should eventually loop by default.
+- Player recreation: loops by default during Recreate and may be stopped or restarted freely.
 - Instrument rows: obvious one-shot audition buttons.
 - Grid editing: activating a cell should audition that row's instrument.
-- Song bonus: name a song with the same/similar groove, not necessarily a single source song.
-- Similar-song bonus may be skipped.
-- Multiple accepted song answers should be supported.
+- Active round: Difficulty Select -> Memorise -> Recreate -> Reveal.
+- Similar Song: removed from the active prototype because synthetic grooves do not support reliable song claims.
+- Backend: Supabase Postgres with anonymous authentication and Row Level Security.
+- Remote persistence: completed attempts only; failures never block local gameplay.
+- Local personal records: remain the source displayed in the current UI.
 - Commercial song audio: not required for the core game.
-- Early versions: desktop-first and local-state focused.
+- Current version: desktop-first, local-gameplay focused, with optional remote attempt persistence.
 - Automatic beat detection/transcription: not required for early development.
 
 ---
@@ -390,15 +355,13 @@ Implemented:
 - unequal/narrow first step cells were corrected
 - four-beat grouping was simplified so the grid reads more cleanly
 
-Known interaction refinements still pending include making the instrument audition controls more obviously clickable and auditioning the appropriate sound when a grid cell is turned on.
-
 ---
 
-## 10. Milestone 4 - Complete Core Round + Interaction Refinements - CURRENT TARGET
+## 10. Milestone 4 - Complete Core Round + Interaction Refinements - COMPLETE
 
-Milestone 4 should build on the working memory game rather than replacing it.
+Milestone 4 completed the local four-part round without replacing the working memory game.
 
-### 10.1 Interaction refinements
+### 10.1 Implemented interaction refinements
 
 - Replace ambiguous coloured triangle instrument indicators with obvious speaker/play buttons.
 - Instrument buttons play one Kick/Snare/Hi-Hat hit.
@@ -406,7 +369,7 @@ Milestone 4 should build on the working memory game rather than replacing it.
 - Turning a grid cell off does not play a sound.
 - Preserve Web Audio buffer reuse and accurate pattern scheduling.
 
-### 10.2 Target-listen tracking
+### 10.2 Implemented target-listen tracking
 
 - Track target listens during Memorise.
 - Count every completed loop repetition as another listen.
@@ -414,13 +377,13 @@ Milestone 4 should build on the working memory game rather than replacing it.
 - Freeze the listen count when Recreate begins.
 - Keep listening unlimited.
 
-### 10.3 Memory bonus
+### 10.3 Superseded memory bonus
 
-- Calculate a small, clearly separated memory-efficiency bonus.
-- Accuracy remains the primary score.
-- Keep the bonus formula isolated and easy to tune.
+Milestone 4 introduced a provisional memory bonus. Milestone 6 removed its logic,
+state, formula, and display after playtesting. Target listens now feed only the
+perfect-round personal record.
 
-### 10.4 Submission flow
+### 10.4 Implemented submission flow
 
 The temporary development-style Check action should evolve into a real submission flow:
 
@@ -431,7 +394,7 @@ The temporary development-style Check action should evolve into a real submissio
 5. Allow the player to answer or skip.
 6. Reveal all results together.
 
-### 10.5 Similar-song bonus
+### 10.5 Implemented similar-song bonus
 
 The question should be framed around a song using the **same or a similar beat**, not identifying one unique source song.
 
@@ -446,7 +409,7 @@ Initial matching can be deterministic and local:
 
 Do not use external APIs or fuzzy AI matching for this milestone.
 
-### 10.6 Reveal
+### 10.6 Implemented reveal
 
 Show:
 
@@ -455,11 +418,11 @@ Show:
 - missed hits
 - extra hits
 - target-listen count
-- memory bonus
+- personal best when the rhythm is perfect
 - accepted similar-song examples
 - whether the player's song answer matched the curated accepted list
 
-### 10.7 Restart
+### 10.7 Implemented restart
 
 A Play Again / Restart Round action should reset:
 
@@ -471,21 +434,22 @@ A Play Again / Restart Round action should reset:
 - similar-song answer
 - reveal state
 
-For now, replaying the same handcrafted puzzle is acceptable.
+The completed implementation includes obvious speaker buttons, grid-cell audition,
+completed-bar listen counting, beat submission without
+early correctness feedback, an optional similar-song question, full grid reveal,
+and safe round reset.
 
 ---
 
-## 11. Future Difficulty Milestone
+## 11. Milestone 5 - Difficulty + Puzzle Variety - COMPLETE
 
-Difficulty is a confirmed product direction but does not need to be forced into Milestone 4 unless explicitly requested.
-
-A later milestone should introduce:
+Milestone 5 introduced:
 
 ```ts
 type Difficulty = "easy" | "normal" | "hard";
 ```
 
-Puzzle data should be able to declare:
+Puzzle data now declares:
 
 - difficulty
 - active instruments
@@ -493,9 +457,58 @@ Puzzle data should be able to declare:
 - BPM
 - optional complexity tags
 
-The UI should adapt cleanly so Easy can genuinely use only two active rows instead of showing an unnecessary Hi-Hat challenge.
+- a pre-round Easy / Normal / Hard selector
+- two handcrafted prototype puzzles per difficulty
+- Easy with Kick + Snare only across playback, grid, scoring, and reveal
+- Normal with three approachable instrument parts
+- Hard with three denser, more syncopated parts rather than merely faster BPM
+- random selection within the chosen pool with immediate-repeat avoidance
+- another-puzzle and change-difficulty actions after Reveal
+- player-created beat looping by default during Recreate
+- clean loop restart from the updated grid when the player edits during playback
+- multiple curated accepted-song objects per puzzle, with empty lists until verified
+- cautious unmatched wording and accepted examples on Reveal when available
 
-Playtesting should determine whether BPM itself should be a difficulty lever; it should not be assumed that simply making a beat faster makes the puzzle better.
+Difficulty is displayed throughout a round and in the results. No difficulty score
+multiplier has been added; playtesting should determine whether one is warranted.
+
+---
+
+## 11.1 Milestone 6 - Playtest Refinement + Difficulty Rebalance - COMPLETE
+
+Milestone 6 refined the local prototype without changing the core audio or round flow:
+
+- expanded `Difficulty` to `easy | normal | hard | insane`
+- kept the former Easy patterns as Easy
+- added two Normal patterns with Easy-like Kick/Snare parts and an added Hi-Hat challenge
+- moved the former Normal patterns to Hard
+- moved the former Hard patterns to Insane
+- reduced the difficulty screen to four direct choices
+- made Listen the primary Memorise action
+- disabled Start Recreating until one completed target listen
+- removed the memory bonus completely
+- added per-puzzle, perfect-round listen records in local storage
+- simplified the main screen and Reveal copy while retaining the three essential result markers
+- preserved target playback/looping, audition behavior, player looping, target lockout,
+  the similar-song phase, and the Select -> Memorise -> Recreate -> Similar Song -> Reveal flow
+
+---
+
+## 11.2 Milestone 7 - Remove Similar Song + Supabase Foundation - COMPLETE
+
+Milestone 7 changed the active round to Select -> Memorise -> Recreate -> Reveal.
+
+Implemented:
+
+- removed the Similar Song phase, inputs, result UI, matching helpers, and puzzle song metadata
+- made Submit Beat stop playback, freeze the reconstruction, calculate results, and reveal immediately
+- added the official Supabase browser client behind environment variables
+- added anonymous Supabase identity without visible account UI
+- added a typed service layer for saving completed attempts and reading a player's best perfect attempt
+- retained localStorage as the current source for displayed personal records
+- added a `game_attempts` migration with private user-owned RLS policies and one focused perfect-attempt index
+- made missing configuration and backend failures non-blocking for the local game
+- documented project setup without adding a global leaderboard or daily puzzle system
 
 ---
 
@@ -515,57 +528,27 @@ Possible metrics include:
 
 Avoid a metric that over-rewards correctly empty cells if that makes sparse beats appear easier than they should be.
 
-### Secondary score: memory efficiency
+### Secondary stat: listen performance
 
-Reward fewer target listens using a modest bonus.
+Show target listens and the best perfect-round listen count for that puzzle. Do not combine listens with rhythm accuracy.
 
-### Future difficulty component
+### Future comparison
 
-A future combined score may account for difficulty, for example conceptually:
-
-```text
-final score = rhythm performance + memory bonus + difficulty adjustment
-```
-
-This is a design direction, not a locked production formula.
-
-The UI should keep the components understandable rather than showing only an unexplained number.
+A future leaderboard may compare perfect-round listen records through the existing
+backend service boundary. Public/global reads and leaderboard UI are not implemented.
 
 ---
 
-## 13. Similar-Song Data Model Direction
+## 13. Future Real-Beat / Song-Recognition Mode
 
-The game should not require a puzzle to have exactly one "correct source song" for player-facing validation.
+Similar Song is not part of the active BeatGrid round. The current patterns are
+synthetic handcrafted grooves and do not provide a strong enough connection to
+specific real songs for reliable player-facing validation.
 
-A future-friendly local shape could be:
-
-```ts
-type AcceptedSong = {
-  title: string;
-  artist?: string;
-  aliases?: string[];
-};
-
-type Puzzle = {
-  id: string;
-  difficulty: "easy" | "normal" | "hard";
-  bpm: number;
-  steps: 16;
-  activeInstruments: ("kick" | "snare" | "hat")[];
-  kick: number[];
-  snare: number[];
-  hat?: number[];
-  acceptedSongs?: AcceptedSong[];
-  referenceSong?: {
-    title: string;
-    artist: string;
-  };
-};
-```
-
-`referenceSong` may be useful internally for provenance or curation, but it should not imply that every other song using the groove is wrong.
-
-The player-facing bonus should validate against `acceptedSongs`.
+The idea may return in a separate future mode if BeatGrid gains verified song
+transcriptions, intentionally curated real-world grooves, and suitable licensed
+or legitimate rhythm data. Do not add accepted-song fields or song tables to the
+current synthetic puzzle model.
 
 ---
 
@@ -591,25 +574,12 @@ Show:
 - obvious instrument audition buttons
 - cell-on audio audition
 - **Play My Beat**
-- player's beat should eventually loop by default when played
+- player's beat loops by default when played, with a clear Stop state
 - clear Stop control/state
 - Reset
 - Submit Beat
 
 Do not expose the target playback controls.
-
-### Similar-song phase
-
-Show a lightweight prompt such as:
-
-> Know a song with the same or a similar beat?
-
-Provide:
-
-- title input
-- optional artist field only if useful
-- Submit
-- Skip
 
 ### Reveal phase
 
@@ -618,9 +588,8 @@ Show the payoff together:
 - rhythm accuracy
 - target vs player differences
 - target listen count
-- memory bonus
-- accepted song examples
-- whether the submitted song matched an accepted answer
+- per-puzzle personal best
+- difficulty
 - Play Again
 
 ### Grid rules
@@ -649,6 +618,10 @@ src/
     Result.tsx
   data/
     puzzles.ts
+  backend/
+    supabase.ts
+    resultsService.ts
+    types.ts
   game/
     scoring.ts
     types.ts
@@ -661,16 +634,22 @@ src/
 Loads sounds, auditions one-shots, and schedules target/player patterns.
 
 **Puzzle data**  
-Defines handcrafted patterns, difficulty, and curated accepted-song examples independently from UI state.
+Defines handcrafted synthetic patterns and difficulty independently from UI state.
 
 **Scoring**  
-Calculates rhythm performance and memory bonus.
+Calculates rhythm performance and reveal cell outcomes.
+
+**Personal records**
+Reads and conditionally updates perfect-round listen records through a small replaceable storage boundary.
+
+**Backend service**
+Owns Supabase authentication and attempt queries. React components pass game-facing values and do not contain raw database queries.
 
 **Grid UI**  
 Displays and edits player state. It should not contain the core audio scheduler.
 
 **Round state**  
-Controls phases such as Memorise, Recreate, Similar Song, and Reveal without requiring a global state-management library.
+Controls Memorise, Recreate, and Reveal without requiring a global state-management library.
 
 These separations should remain lightweight.
 
@@ -718,7 +697,6 @@ Do not install these merely because they may appear in future planning:
 - Aubio
 - FFmpeg
 - Docker
-- PostgreSQL/Supabase
 - backend frameworks
 
 ---
@@ -727,31 +705,20 @@ Do not install these merely because they may appear in future planning:
 
 The exact milestone numbering may evolve, but the intended order is:
 
-### Milestones 1-3 - COMPLETE
+### Milestones 1-7 - COMPLETE
 
-Foundation, Web Audio, and memory/recreation flow.
+Foundation, Web Audio, memory/recreation flow, the complete local round,
+interaction refinements, Easy/Normal/Hard/Insane, eight handcrafted puzzles,
+active-row scoring, loop-by-default player playback, playtest copy cleanup,
+local perfect-round listen records, removal of Similar Song from the active
+round, and a private Supabase attempt-storage foundation.
 
-### Milestone 4 - CURRENT
+### Next: Local playtesting and tuning
 
-Complete the local round flow and interaction refinements:
-
-- obvious instrument audition buttons
-- grid-cell audition
-- target-listen counting
-- memory bonus
-- submission
-- similar-song bonus
-- reveal
-- restart
-
-### Next: Difficulty + Puzzle Variety
-
-- Easy / Normal / Hard
-- 2-row Easy mode
-- 3-row Normal/Hard
-- multiple handcrafted puzzles
-- difficulty-appropriate groove selection
-- tune scoring through playtesting
+- test whether the eight grooves and four modes feel appropriately distinct
+- tune puzzle patterns and sample levels
+- decide from playtesting whether scoring should change or gain a difficulty modifier
+- configure and observe anonymous attempt persistence before building public features
 
 ### Later: Daily/Persistence
 
@@ -795,7 +762,7 @@ Early and core versions should use:
 
 - BeatGrid's own licensed/created drum samples
 - abstract rhythm patterns
-- text metadata for accepted song examples
+- optional verified song metadata only if a future real-beat mode is deliberately developed
 
 Do not embed song clips or stream commercial recordings unless a suitable licensed source/API is deliberately selected and its terms are understood.
 
@@ -838,12 +805,10 @@ Do not spend Codex effort on backend, deployment, automated transcription, or pr
 
 The next development work should preserve these product decisions:
 
-1. Make instrument audition controls unmistakably clickable.
-2. Audition a drum sound whenever the player turns a grid hit on.
-3. Track target listens accurately, including repeated target loops.
-4. Reward fewer target listens without ever limiting access during Memorise.
-5. Replace the one-source-song concept with a multiple-answer similar-song bonus.
-6. Keep player-created beat playback freely available during Recreate and move toward loop-by-default playback.
-7. Maintain the target lockout once the player commits to recreating.
-8. Introduce Easy / Normal / Hard later using the agreed mixed difficulty model.
-
+1. Playtest Easy, Normal, Hard, and Insane with musicians and non-musicians.
+2. Tune the eight handcrafted patterns based on observed confusion and enjoyment.
+3. Verify Supabase anonymous attempt storage and RLS with a configured development project.
+4. Evaluate whether cell accuracy over-rewards empty cells, especially on Easy.
+5. Keep player-created beat looping, target lockout, and accurate listen counting intact.
+6. Defer difficulty multipliers until playtesting shows a clear need.
+7. Keep global leaderboards and daily puzzles as future work.

@@ -13,6 +13,9 @@ let samples: Promise<Record<Instrument, AudioBuffer>> | undefined
 let busy = false
 let generation = 0
 let activeSources: AudioBufferSourceNode[] = []
+let auditionSources: AudioBufferSourceNode[] = []
+let auditionFinishes = new Map<AudioBufferSourceNode, () => void>()
+let auditionGeneration = 0
 let finishPlayback: (() => void) | undefined
 let reportCompletedBars: (() => void) | undefined
 let progressTimer: ReturnType<typeof setInterval> | undefined
@@ -40,6 +43,17 @@ function loadSamples(audio: AudioContext) {
       throw new Error('Drum samples could not load. Check your connection and try again.')
     })
   return samples
+}
+
+function stopAuditions() {
+  auditionGeneration++
+  for (const source of auditionSources) {
+    source.onended = null
+    source.stop()
+    auditionFinishes.get(source)?.()
+  }
+  auditionSources = []
+  auditionFinishes = new Map()
 }
 
 async function resumeContext(audio: AudioContext) {
@@ -72,6 +86,7 @@ export function stopPlayback() {
     source.disconnect()
   }
   activeSources = []
+  stopAuditions()
   finishPlayback?.()
   finishPlayback = undefined
   busy = false
@@ -186,10 +201,35 @@ export async function playPattern(pattern: AudioPattern, bpm: number, steps: num
 
 
 
-// Auditions share the existing cache and cancellation path, and contain one hit only.
-export function auditionInstrument(instrument: Instrument) {
-  const pattern: AudioPattern = { kick: [], snare: [], hat: [] }
-  pattern[instrument] = [0]
-  return playPattern(pattern, 240, 1)
+// Auditions share the context/sample cache but use a separate one-shot lane, so
+// editing feedback can sound over a running player loop without stopping it.
+export async function auditionInstrument(instrument: Instrument) {
+  stopAuditions()
+  const request = auditionGeneration
+  const audio = getContext()
+  const [, buffers] = await Promise.all([resumeContext(audio), loadSamples(audio)])
+  if (request !== auditionGeneration) return
+  if (audio.state !== 'running') {
+    throw new Error('Audio was interrupted while loading. Try the sound again.')
+  }
+  const output = audio.createGain()
+  output.gain.value = 0.55
+  output.connect(audio.destination)
+  const source = audio.createBufferSource()
+  source.buffer = buffers[instrument]
+  source.connect(output)
+  auditionSources.push(source)
+  await new Promise<void>(resolve => {
+    const finish = () => {
+      auditionSources = auditionSources.filter(active => active !== source)
+      auditionFinishes.delete(source)
+      source.disconnect()
+      output.disconnect()
+      resolve()
+    }
+    auditionFinishes.set(source, finish)
+    source.onended = finish
+    source.start(audio.currentTime)
+  })
 }
 

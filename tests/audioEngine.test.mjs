@@ -149,21 +149,37 @@ test('native target loop is exactly one bar, remains active, and stops on cancel
   assert.equal(requests.length, 3)
 })
 
-test('each audition schedules exactly one selected sample and reuses cached buffers', async () => {
+test('each audition schedules exactly one independent sample and reuses cached buffers', async () => {
   const { engine, contexts, requests } = await setup()
   for (const instrument of ['kick', 'snare', 'hat']) {
     const playing = engine.auditionInstrument(instrument)
     await flush()
     const ctx = contexts[0]
-    const batch = ctx.sources.slice(-2)
-    assert.equal(batch.length, 2) // one hit and one silent completion marker
-    assert.equal(batch[0].loop, false)
-    assert.equal(batch[0].starts.length, 1)
-    end(ctx)
+    const hit = ctx.sources.at(-1)
+    assert.equal(hit.loop, false)
+    assert.equal(hit.starts.length, 1)
+    hit.onended()
     await playing
   }
   assert.equal(contexts[0].decoded, 3)
   assert.equal(requests.length, 3)
+})
+
+test('auditions do not stop a running pattern loop', async () => {
+  const { engine, contexts } = await setup()
+  const loop = engine.playPattern(target, 120, 16, true)
+  await flush()
+  const loopSource = contexts[0].sources[0]
+  const audition = engine.auditionInstrument('kick')
+  await flush()
+  const hit = contexts[0].sources.at(-1)
+  assert.equal(loopSource.stops.length, 0)
+  assert.equal(hit.starts.length, 1)
+  hit.onended()
+  await audition
+  assert.equal(loopSource.stops.length, 0)
+  engine.stopPlayback()
+  await loop
 })
 
 test('target count uses complete audio-clock bars and flushes all loop repetitions on stop', async () => {

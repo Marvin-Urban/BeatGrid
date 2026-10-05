@@ -1,5 +1,5 @@
 main { max-width: 1200px; padding: 32px 40px; margin: auto; }
-.page-header, .game-heading, .controls, .grid-caption, .result { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.page-header, .game-heading, .controls, .result, .next-actions { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .brand { color: #f5f6fa; font-size: 23px; font-weight: 750; text-decoration: none; letter-spacing: -1px; }
 .brand-mark { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-right: 8px; border-radius: 9px; background: #c3f16b; color: #18230b; }
 .badge { color: #939ba8; font-size: 10px; letter-spacing: 1.5px; border: 1px solid #343943; border-radius: 20px; padding: 8px 12px; }
@@ -28,22 +28,22 @@ h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.4px; }
 .cell.active { background: var(--accent); border-color: var(--accent); }
 .cell.active:hover { filter: brightness(1.1); }
 .cell span { font-size: 12px; }
-.grid-caption { color: #939cab; font-size: 10px; margin: 18px 0 26px; }
-.controls { border-top: 1px solid #303540; padding-top: 24px; }
+.controls { margin-top: 24px; border-top: 1px solid #303540; padding-top: 24px; }
 .audio-controls, .action-controls { display: flex; gap: 10px; }
 .controls button { min-width: 100px; border-radius: 8px; padding: 12px 18px; border: 1px solid #414754; background: #242933; color: #e5e9ef; font-size: 13px; font-weight: 600; }
 .controls button:disabled { color: #939ba8; background: #20242b; border-color: #343a45; }
 .controls .reset { background: transparent; }
 .controls .check { background: #c3f16b; border-color: #c3f16b; color: #17200b; min-width: 128px; }
+.controls .primary-listen { background: #c3f16b; border-color: #c3f16b; color: #17200b; min-width: 128px; }
 .check span { margin-left: 22px; }
 .controls button:enabled:hover { filter: brightness(1.15); }
-.audio-note { font-size: 11px; color: #a0a9b8; margin: 13px 0 23px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .result { min-height: 80px; border-radius: 10px; padding: 18px 20px; background: #12151b; border: 1px solid #2b313c; color: #a7b0bf; }
 .result p { margin: 0; font-size: 12px; }
 .result strong { display: block; color: #edf0f5; font-size: 15px; margin-bottom: 6px; }
 .percentage { font-size: 29px; color: #c3f16b; font-weight: 650; letter-spacing: -1px; }
 footer { margin: 32px 0 16px; text-align: center; font-size: 9px; letter-spacing: 2px; color: #8b95a5; }
-@media (max-width: 650px) { main { padding: 24px 18px; } .badge { font-size: 8px; padding: 7px; letter-spacing: .5px; } .intro { margin-top: 48px; } .game { padding: 20px 16px; } .game-heading { align-items: flex-start; } .tempo { font-size: 9px; } .controls { align-items: stretch; flex-direction: column; gap: 12px; } .controls button { flex: 1; } .grid-caption { font-size: 9px; } }
+@media (max-width: 650px) { main { padding: 24px 18px; } .badge { font-size: 8px; padding: 7px; letter-spacing: .5px; } .intro { margin-top: 48px; } .game { padding: 20px 16px; } .game-heading { align-items: flex-start; } .tempo { font-size: 9px; } .controls { align-items: stretch; flex-direction: column; gap: 12px; } .controls button { flex: 1; } }
 
 .audio-error { color: #ffc2b7; font-size: 13px; padding: 12px; border: 1px solid #86584f; border-radius: 8px; background: #352422; }
 
@@ -54,7 +54,6 @@ footer { margin: 32px 0 16px; text-align: center; font-size: 9px; letter-spacing
 .row-label { background: transparent; border: 0; padding: 10px 0; color: #edf0f5; text-align: left; }
 .row-label span { font-size: 10px; color: var(--accent); }
 .row-label:hover { color: var(--accent); }
-.phase-note { color: #b0bac9; font-size: 12px; line-height: 1.6; margin: -12px 0 24px; }
 .controls button[aria-pressed='true'] { border-color: #c3f16b; color: #c3f16b; }
 .intro { margin-top: 56px; }
 
@@ -66,7 +65,7 @@ footer { margin: 32px 0 16px; text-align: center; font-size: 9px; letter-spacing
 .audition:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .listen-count { color: #acb7c8; font-size: 12px; margin: 0 0 24px; }
 .listen-count strong { color: #e7edf5; }
-.round-results { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; margin: 0 0 26px; padding: 22px; border: 1px solid #414c3d; background: #151c17; border-radius: 12px; }
+.round-results { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: 16px; margin: 0 0 26px; padding: 22px; border: 1px solid #414c3d; background: #151c17; border-radius: 12px; }
 .round-results > div { display: flex; flex-direction: column; gap: 8px; }
 .round-results span, .round-results small { font-size: 12px; color: #b5c1b6; }
 .round-results strong { font-size: 30px; }
@@ -78,10 +77,37 @@ footer { margin: 32px 0 16px; text-align: center; font-size: 9px; letter-spacing
 .cell.outcome-missed span, .cell.outcome-extra span { font-size: 22px; }
 .grid-legend { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 20px 0; color: #c6cfdb; font-size: 12px; }
 .grid-legend p { flex-basis: 100%; margin: 0; color: #9daabc; }
-.song-guess, .song-result { padding: 24px; margin-top: 24px; background: #12161d; border: 1px solid #343e4c; border-radius: 12px; }
-.song-guess label { display: block; font-size: 20px; margin-bottom: 14px; }
-.song-guess p, .song-result p { color: #aebacc; font-size: 13px; line-height: 1.6; }
-.song-guess input { width: 100%; padding: 14px; margin: 6px 0 20px; border: 1px solid #59677b; border-radius: 8px; background: #222a35; color: #f0f4fa; font: inherit; }
-.song-guess input:focus-visible { outline: 2px solid #c3f16b; outline-offset: 3px; }
-.song-result strong { display: block; margin-top: 20px; color: #e9eef6; }
 .intro h1:focus { outline: none; }
+
+.round-meta { display: flex; align-items: center; gap: 10px; }
+.difficulty-chip { border: 1px solid #53606f; border-radius: 999px; padding: 7px 12px; color: #e8edf4; font-size: 10px; font-weight: 750; letter-spacing: 1px; text-transform: uppercase; }
+.difficulty-chip.easy { border-color: #6d955e; color: #c3f16b; }
+.difficulty-chip.normal { border-color: #627d9e; color: #98caff; }
+.difficulty-chip.hard { border-color: #9b6573; color: #ffadbd; }
+.difficulty-chip.insane { border-color: #a169b4; color: #efa8ff; }
+.difficulty-intro { max-width: 760px; }
+.difficulty-picker { padding: 30px; border: 1px solid #303540; border-radius: 20px; background: #191c23; }
+.difficulty-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.difficulty-card { display: grid; min-height: 112px; place-items: center; padding: 24px; border: 1px solid #3c4450; border-radius: 14px; background: #222731; color: #edf0f5; cursor: pointer; transition: border-color .15s, transform .15s, background .15s; }
+.difficulty-card:hover { transform: translateY(-3px); border-color: #c3f16b; background: #29303a; }
+.difficulty-card:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+.difficulty-name { font-size: 14px; font-weight: 750; letter-spacing: 1.6px; text-transform: uppercase; }
+.difficulty-easy .difficulty-name { color: #c3f16b; }
+.difficulty-normal .difficulty-name { color: #98caff; }
+.difficulty-hard .difficulty-name { color: #ffadbd; }
+.difficulty-insane .difficulty-name { color: #efa8ff; }
+.rows-2 .instrument-row { margin-bottom: 14px; }
+.rows-2 .cell { height: 56px; }
+.listen-count > span { margin: 0 7px; color: #606b7a; }
+.result-difficulty { font-size: 22px !important; text-transform: capitalize; }
+.next-actions { margin-top: 24px; padding-top: 24px; border-top: 1px solid #303540; justify-content: flex-end; }
+.next-actions button { min-width: 150px; border-radius: 8px; padding: 12px 18px; border: 1px solid #414754; background: #242933; color: #e5e9ef; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.next-actions .check { background: #c3f16b; border-color: #c3f16b; color: #17200b; }
+.next-actions button:hover { filter: brightness(1.15); }
+
+@media (max-width: 760px) {
+  .difficulty-options { grid-template-columns: 1fr 1fr; }
+  .round-results { grid-template-columns: 1fr; }
+  .round-meta .badge { display: none; }
+  .next-actions { align-items: stretch; flex-direction: column; }
+}
