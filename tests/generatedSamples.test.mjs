@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 const audioUrl = new URL('../src/assets/audio/', import.meta.url)
-const kits = ['current', 'modern', 'warm', 'electronic', 'dry']
+const kits = ['current', 'modern']
 const instruments = ['kick', 'snare', 'hat']
 const baselineHashes = {
   kick: '06a2ec3ed073b6e57fd109fde4f081426bd7d3158b0a4a246be3ba8f26d360fe',
@@ -37,7 +37,7 @@ test('the Current kit remains byte-for-byte identical to the original baseline',
   }
 })
 
-test('all five local kits contain valid, audible, intentionally distinct PCM assets', () => {
+test('both local kits contain valid, audible, intentionally distinct PCM assets', () => {
   for (const instrument of instruments) {
     const hashes = new Set()
     for (const kit of kits) {

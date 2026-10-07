@@ -553,6 +553,19 @@ Implemented:
 
 ---
 
+## 11.5 Core Feel and UI Experiment Follow-up - COMPLETE
+
+- made Listen act as the target transport control: it becomes Stop during one-shot or loop playback, while Loop Target remains an independent playback-mode preference
+- selected the synchronized four-beat panel pulse as the preferred visual design and removed the temporary half-time alternative
+- added a discreet player-facing visual-metronome switch that defaults on and can disable the panel pulse without changing audio timing
+- removed the rejected Warm, Electronic, and Dry kits; Current and Modern remain in the temporary developer comparison
+- changed reconstruction editing so the Web Audio transport keeps its position and swaps the updated pattern at the next bar boundary instead of restarting
+- suppressed cell-on audition while the player's beat is running; newly enabled cells still audition when playback is stopped
+- added a temporary Current versus Studio developer UI comparison, with Studio using sharper geometry and straighter structure while preserving the layout and game identity
+- installed the supplied cropped transparent BeatGrid logo directly in the header with its full aspect ratio preserved
+
+---
+
 ## 12. Scoring Direction
 
 ### Primary score: rhythm accuracy

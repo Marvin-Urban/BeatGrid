@@ -152,7 +152,7 @@ test('native target loop is exactly one bar, remains active, and stops on cancel
 
 test('whole-kit selection loads each kit once and reuses its decoded buffers', async () => {
   const { engine, contexts, requests } = await setup()
-  assert.deepEqual(engine.drumKits, ['current', 'modern', 'warm', 'electronic', 'dry'])
+  assert.deepEqual(engine.drumKits, ['current', 'modern'])
   const ctxSources = []
 
   for (const kit of engine.drumKits) {
@@ -166,8 +166,8 @@ test('whole-kit selection loads each kit once and reuses its decoded buffers', a
     await playing
   }
 
-  assert.deepEqual(ctxSources, [1, 1, 1, 1, 1])
-  assert.equal(requests.length, 15)
+  assert.deepEqual(ctxSources, [1, 1])
+  assert.equal(requests.length, 6)
   for (const kit of engine.drumKits.slice(1)) {
     assert.equal(requests.filter(url => url.includes(`/kits/${kit}/`)).length, 3)
   }
@@ -177,7 +177,33 @@ test('whole-kit selection loads each kit once and reuses its decoded buffers', a
   await flush()
   end(contexts[0])
   await replay
-  assert.equal(requests.length, 15)
+  assert.equal(requests.length, 6)
+})
+
+test('a running player loop swaps patterns on the next bar without restarting its transport', async () => {
+  const { engine, contexts } = await setup()
+  const playing = engine.playPattern(target, 120, 16, true, undefined, false, undefined, true)
+  await flush()
+  const ctx = contexts[0]
+  const original = ctx.sources[0]
+  const originalStart = original.starts[0]
+
+  ctx.currentTime = 10.7
+  engine.updatePlayingPattern({ ...empty, kick: [4] })
+  const replacement = ctx.sources.at(-1)
+  assert.equal(original.starts.length, 1)
+  assert.equal(replacement.starts[0], 12.05)
+  assert.equal(original.stops.at(-1), 12.05)
+
+  ctx.currentTime = 11.1
+  engine.updatePlayingPattern({ ...empty, snare: [8] })
+  const latest = ctx.sources.at(-1)
+  assert.equal(replacement.stops.at(-1), 12.05)
+  assert.equal(latest.starts[0], 12.05)
+  assert.equal(originalStart, 10.05)
+
+  engine.stopPlayback()
+  await playing
 })
 
 test('dynamic target playback moves between one-shot and looping at exact bar boundaries without new sources', async () => {

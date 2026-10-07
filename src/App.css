@@ -18,16 +18,15 @@ main {
 .brand {
   display: block;
   width: 200px;
-  height: 46px;
-  overflow: hidden;
+  height: 67px;
 }
 
 .brand-logo {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center 46%;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .badge,
@@ -163,7 +162,6 @@ h2 {
 }
 
 .game.panel-beat-1::after { animation: panel-beat-one 280ms ease-out both; }
-.game.panel-beat-half::after { animation: panel-beat-one 280ms ease-out both; }
 .game.panel-beat-2::after { animation: panel-beat-two 220ms ease-out both; }
 .game.panel-beat-3::after { animation: panel-beat-three 220ms ease-out both; }
 .game.panel-beat-4::after { animation: panel-beat-four 220ms ease-out both; }
@@ -181,6 +179,22 @@ h2 {
 
 .tempo strong { color: var(--text); font-size: 19px; font-variant-numeric: tabular-nums; }
 .tempo span { margin: 0 9px; color: var(--border-strong); }
+
+.tempo-tools { display: flex; align-items: flex-end; flex-direction: column; gap: 7px; }
+.visual-metronome {
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.visual-metronome[aria-pressed='true'] { border-color: #526746; color: var(--primary-soft); }
 
 .round-meta { position: relative; display: flex; align-items: center; gap: 10px; }
 .difficulty-chip.easy { border-color: #638c59; color: var(--primary); }
@@ -610,6 +624,22 @@ h2 {
   background: #2a251b;
   color: #f0ca7e;
 }
+
+/* Temporary developer comparison: a sharper sequencer-inspired treatment. */
+.ui-studio .difficulty-picker,
+.ui-studio .game { border-radius: 5px; }
+.ui-studio .game { padding-block: clamp(20px, 2.5vw, 28px); }
+.ui-studio .game-heading { padding-bottom: 17px; border-bottom: 1px solid var(--border); }
+.ui-studio .cell { border-radius: 0; }
+.ui-studio .difficulty-card,
+.ui-studio .controls button,
+.ui-studio .next-actions button,
+.ui-studio .round-results,
+.ui-studio .audio-error { border-radius: 4px; }
+.ui-studio .grid-line { column-gap: 5px; }
+.ui-studio .instrument-row + .instrument-row { padding-top: 4px; border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.ui-studio .dev-kit { border-radius: 3px; }
+.ui-studio .dev-kit button { border-radius: 2px; }
 
 footer {
   margin: 32px 0 12px;

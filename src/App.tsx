@@ -17,6 +17,7 @@ import {
   setDrumKit as setAudioDrumKit,
   setPatternLooping,
   stopPlayback,
+  updatePlayingPattern,
   type AudioPattern,
   type DrumKit,
   type PlaybackBeat,
@@ -26,7 +27,7 @@ import './App.css'
 
 type GamePhase = 'select' | 'memorise' | 'recreate' | 'reveal'
 type Playback = 'targetOnce' | 'targetLoop' | 'playerLoop'
-type PulseMode = 'four-beat' | 'half-time'
+type UiMode = 'current' | 'studio'
 const labels: Record<Instrument, string> = { kick: 'Kick', snare: 'Snare', hat: 'Hi-Hat' }
 const outcomeLabels = { correct: 'Correct hit', missed: 'Missed hit', extra: 'Extra hit', empty: 'Correctly empty' }
 const outcomeSymbols = { correct: '●', missed: '○', extra: '×', empty: '' }
@@ -37,9 +38,10 @@ const phaseLabels: Partial<Record<GamePhase, string>> = {
   memorise: '01 / MEMORISE', recreate: '02 / RECREATE', reveal: '03 / REVEAL',
 }
 const devKitStorageKey = 'beatgrid.devKit'
-const devPulseStorageKey = 'beatgrid.devPulse'
+const devUiStorageKey = 'beatgrid.devUi'
+const visualMetronomeStorageKey = 'beatgrid.visualMetronome'
 const devKitLabels: Record<DrumKit, string> = {
-  current: 'Current', modern: 'Modern', warm: 'Warm', electronic: 'Electronic', dry: 'Dry',
+  current: 'Current', modern: 'Modern',
 }
 
 function readDevKit(): DrumKit {
@@ -51,12 +53,16 @@ function readDevKit(): DrumKit {
   }
 }
 
-function readDevPulse(): PulseMode {
+function readDevUi(): UiMode {
   try {
-    return window.localStorage.getItem(devPulseStorageKey) === 'half-time' ? 'half-time' : 'four-beat'
+    return window.localStorage.getItem(devUiStorageKey) === 'studio' ? 'studio' : 'current'
   } catch {
-    return 'four-beat'
+    return 'current'
   }
+}
+
+function readVisualMetronome() {
+  try { return window.localStorage.getItem(visualMetronomeStorageKey) !== 'off' } catch { return true }
 }
 
 function Brand() {
@@ -73,25 +79,25 @@ function DevKitSelector({ selected, onSelect }: { selected: DrumKit, onSelect: (
   </aside>
 }
 
-function DevPulseSelector({ selected, onSelect }: { selected: PulseMode, onSelect: (mode: PulseMode) => void }) {
-  return <aside className="dev-kit dev-pulse" aria-label="Temporary developer beat-flash style">
-    <span className="dev-kit-label">DEV PULSE</span>
-    <div className="dev-kit-options" role="group" aria-label="Beat flash style">
-      <button type="button" aria-pressed={selected === 'four-beat'} onClick={() => onSelect('four-beat')}>4-BEAT</button>
-      <button type="button" aria-pressed={selected === 'half-time'} onClick={() => onSelect('half-time')}>2-BEAT</button>
+function DevUiSelector({ selected, onSelect }: { selected: UiMode, onSelect: (mode: UiMode) => void }) {
+  return <aside className="dev-kit dev-ui" aria-label="Temporary developer interface style">
+    <span className="dev-kit-label">DEV UI</span>
+    <div className="dev-kit-options" role="group" aria-label="Interface style">
+      <button type="button" aria-pressed={selected === 'current'} onClick={() => onSelect('current')}>CURRENT</button>
+      <button type="button" aria-pressed={selected === 'studio'} onClick={() => onSelect('studio')}>STUDIO</button>
     </div>
   </aside>
 }
 
-function DevTools({ drumKit, onKitSelect, pulseMode, onPulseSelect }: {
+function DevTools({ drumKit, onKitSelect, uiMode, onUiSelect }: {
   drumKit: DrumKit
   onKitSelect: (kit: DrumKit) => void
-  pulseMode: PulseMode
-  onPulseSelect: (mode: PulseMode) => void
+  uiMode: UiMode
+  onUiSelect: (mode: UiMode) => void
 }) {
   return <div className="dev-tools">
     <DevKitSelector selected={drumKit} onSelect={onKitSelect} />
-    <DevPulseSelector selected={pulseMode} onSelect={onPulseSelect} />
+    <DevUiSelector selected={uiMode} onSelect={onUiSelect} />
   </div>
 }
 
@@ -141,11 +147,12 @@ export default function App() {
   const [targetLoopEnabled, setTargetLoopEnabled] = useState(false)
   const targetLoopEnabledRef = useRef(false)
   const [audioError, setAudioError] = useState('')
-  const [panelBeat, setPanelBeat] = useState<PlaybackBeat | 'half' | null>(null)
+  const [panelBeat, setPanelBeat] = useState<PlaybackBeat | null>(null)
   const [difficultyMenuOpen, setDifficultyMenuOpen] = useState(false)
   const [drumKit, setDrumKit] = useState<DrumKit>(readDevKit)
-  const [pulseMode, setPulseMode] = useState<PulseMode>(readDevPulse)
-  const pulseModeRef = useRef<PulseMode>(pulseMode)
+  const [uiMode, setUiMode] = useState<UiMode>(readDevUi)
+  const [visualMetronome, setVisualMetronome] = useState(readVisualMetronome)
+  const visualMetronomeRef = useRef(visualMetronome)
   const playbackRequest = useRef(0)
   const auditionRequest = useRef(0)
   const lastPuzzleIds = useRef<Partial<Record<Difficulty, string>>>({})
@@ -226,15 +233,21 @@ export default function App() {
     }
   }
 
-  function selectPulseMode(mode: PulseMode) {
-    pulseModeRef.current = mode
-    setPulseMode(mode)
-    setPanelBeat(null)
+  function selectUiMode(mode: UiMode) {
+    setUiMode(mode)
     try {
-      window.localStorage.setItem(devPulseStorageKey, mode)
+      window.localStorage.setItem(devUiStorageKey, mode)
     } catch {
       // The temporary selector still works for this session when storage is unavailable.
     }
+  }
+
+  function toggleVisualMetronome() {
+    const enabled = !visualMetronomeRef.current
+    visualMetronomeRef.current = enabled
+    setVisualMetronome(enabled)
+    if (!enabled) setPanelBeat(null)
+    try { window.localStorage.setItem(visualMetronomeStorageKey, enabled ? 'on' : 'off') } catch { /* session only */ }
   }
 
   function transition(next: GamePhase) {
@@ -273,9 +286,8 @@ export default function App() {
         }
       } : undefined, allowLoopChanges, beat => {
         if (request !== playbackRequest.current) return
-        if (pulseModeRef.current === 'four-beat') setPanelBeat(beat)
-        else setPanelBeat(beat === 1 ? 1 : beat === 3 ? 'half' : null)
-      })
+        if (visualMetronomeRef.current) setPanelBeat(beat)
+      }, mode === 'playerLoop')
     } catch (error) {
       if (request === playbackRequest.current) {
         setAudioError(error instanceof Error ? error.message : 'Audio could not play. Please try again.')
@@ -291,7 +303,10 @@ export default function App() {
 
   function playTarget() {
     if (!puzzle || phaseRef.current !== 'memorise') return
-    if (playbackRef.current === 'targetOnce' || playbackRef.current === 'targetLoop') return
+    if (playbackRef.current === 'targetOnce' || playbackRef.current === 'targetLoop') {
+      stop()
+      return
+    }
     const loop = targetLoopEnabledRef.current
     void startPattern(loop ? 'targetLoop' : 'targetOnce', targetPattern(puzzle), loop, puzzle, true)
   }
@@ -335,8 +350,8 @@ export default function App() {
     }
     const loopWasPlaying = playbackRef.current === 'playerLoop'
     setGrid(nextGrid)
-    if (loopWasPlaying) playPlayerGrid(nextGrid)
-    if (turningOn) void audition(instrument)
+    if (loopWasPlaying) updatePlayingPattern(patternFromGrid(nextGrid, puzzle))
+    else if (turningOn) void audition(instrument)
   }
 
   function resetGrid() {
@@ -379,7 +394,7 @@ export default function App() {
   }
 
   if (phase === 'select' || !puzzle) {
-    return <main>
+    return <main className={'ui-' + uiMode}>
       <header className="page-header">
         <Brand />
         <span className="badge">PUZZLE LAB</span>
@@ -395,7 +410,7 @@ export default function App() {
           </button>)}
         </div>
       </section>
-      <DevTools drumKit={drumKit} onKitSelect={selectDevKit} pulseMode={pulseMode} onPulseSelect={selectPulseMode} />
+      <DevTools drumKit={drumKit} onKitSelect={selectDevKit} uiMode={uiMode} onUiSelect={selectUiMode} />
       <footer>MEMORISE. RECREATE. COMPARE.</footer>
     </main>
   }
@@ -406,11 +421,11 @@ export default function App() {
   const revealed = phase === 'reveal'
   const audioNote = playback === 'targetLoop' ? 'Target looping. Every completed bar counts as a listen.'
     : playback === 'targetOnce' ? 'Playing the target once…'
-    : playback === 'playerLoop' ? 'Your beat is looping. Grid edits restart it with the updated pattern.'
-    : 'Speaker buttons and new cells audition one sound without stopping your loop.'
+    : playback === 'playerLoop' ? 'Your beat is looping. Edits join cleanly on the next bar.'
+    : 'Speaker buttons and newly enabled cells audition one sound.'
   const heading = memorising ? 'Let the beat sink in.' : recreating ? 'Make it from memory.' : 'Your round, revealed.'
 
-  return <main>
+  return <main className={'ui-' + uiMode}>
     <header className="page-header">
       <Brand />
       <div className="round-meta" ref={difficultyMenu}>
@@ -434,7 +449,10 @@ export default function App() {
     <section className={'game phase-' + phase + ' rows-' + puzzle.activeInstruments.length + (panelBeat ? ' panel-beat-' + panelBeat : '')} aria-label="BeatGrid puzzle">
       <div className="game-heading">
         <div><p className="eyebrow">{phaseLabels[phase]}</p><h2>{revealed ? 'Your rhythm results' : memorising ? 'Listen. Learn the sounds. Remember.' : 'Your memory. Your pattern.'}</h2></div>
-        <div className="tempo"><strong>{puzzle.bpm}</strong> BPM <span> / </span> 1 BAR</div>
+        <div className="tempo-tools">
+          <div className="tempo"><strong>{puzzle.bpm}</strong> BPM <span> / </span> 1 BAR</div>
+          <button type="button" className="visual-metronome" aria-pressed={visualMetronome} onClick={toggleVisualMetronome}>Pulse {visualMetronome ? 'On' : 'Off'}</button>
+        </div>
       </div>
       <p className="listen-count" aria-live="polite">Target listens: <strong>{listenCount}</strong> <span>·</span> Difficulty: <strong>{difficultyCopy[puzzle.difficulty]}</strong></p>
 
@@ -470,7 +488,7 @@ export default function App() {
         <div className={'controls ' + (memorising ? 'memorise-controls' : 'recreate-controls')}>
           {memorising ? <>
             <div className="audio-controls">
-              <button className="primary-listen" data-playing={playback === 'targetOnce' || playback === 'targetLoop'} onClick={playTarget}><PlayIcon /><span>{playback === 'targetLoop' ? 'Looping…' : playback === 'targetOnce' ? 'Listening…' : 'Listen'}</span></button>
+              <button className="primary-listen" data-playing={playback === 'targetOnce' || playback === 'targetLoop'} onClick={playTarget}>{playback === 'targetOnce' || playback === 'targetLoop' ? <StopIcon /> : <PlayIcon />}<span>{playback === 'targetOnce' || playback === 'targetLoop' ? 'Stop' : 'Listen'}</span></button>
               <button className="loop-toggle" aria-pressed={targetLoopEnabled} onClick={toggleTargetLoop}><LoopIcon /><span>Loop Target</span><strong>{targetLoopEnabled ? 'ON' : 'OFF'}</strong></button>
             </div>
             <button className="ready-action" disabled={listenCount < 1} title={listenCount < 1 ? 'Complete one target listen first' : undefined} onClick={() => { if (phaseRef.current === 'memorise') transition('recreate') }}><span>Start Recreating</span><ArrowIcon /></button>
@@ -488,7 +506,7 @@ export default function App() {
           <button className="check" onClick={() => beginPuzzle(puzzle.difficulty)}><span>Another {difficultyCopy[puzzle.difficulty]} Puzzle</span><ArrowIcon /></button>
       </div>}
     </section>
-    <DevTools drumKit={drumKit} onKitSelect={selectDevKit} pulseMode={pulseMode} onPulseSelect={selectPulseMode} />
+    <DevTools drumKit={drumKit} onKitSelect={selectDevKit} uiMode={uiMode} onUiSelect={selectUiMode} />
     <footer>MEMORISE. RECREATE. COMPARE.</footer>
   </main>
 }

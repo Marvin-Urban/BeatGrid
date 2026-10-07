@@ -14,9 +14,6 @@ The root files remain the unchanged **Current** baseline:
 Four temporary whole-kit alternatives live under `kits/`:
 
 - `modern`: short, punchy kick; crisp snare; controlled bright hat
-- `warm`: round low kick; softer full-bodied snare; gentler longer hat
-- `electronic`: strong pitch/transient kick; synthetic clap-like snare; metallic hat
-- `dry`: restrained, very short envelopes designed for dense grooves
 
 All files are mono, 44.1 kHz, 16-bit PCM. Attack/release fades avoid clicks.
 Regenerate from the project root with `node scripts/generate-samples.mjs`.

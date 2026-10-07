@@ -2,7 +2,7 @@ import type { Instrument } from '../data/puzzles'
 
 export type AudioPattern = Record<Instrument, readonly number[]>
 export type PlaybackBeat = 1 | 2 | 3 | 4
-export const drumKits = ['current', 'modern', 'warm', 'electronic', 'dry'] as const
+export const drumKits = ['current', 'modern'] as const
 export type DrumKit = typeof drumKits[number]
 const instruments: Instrument[] = ['kick', 'snare', 'hat']
 const sampleUrls: Record<DrumKit, Record<Instrument, URL>> = {
@@ -15,21 +15,6 @@ const sampleUrls: Record<DrumKit, Record<Instrument, URL>> = {
     kick: new URL('../assets/audio/kits/modern/kick.wav', import.meta.url),
     snare: new URL('../assets/audio/kits/modern/snare.wav', import.meta.url),
     hat: new URL('../assets/audio/kits/modern/hat.wav', import.meta.url),
-  },
-  warm: {
-    kick: new URL('../assets/audio/kits/warm/kick.wav', import.meta.url),
-    snare: new URL('../assets/audio/kits/warm/snare.wav', import.meta.url),
-    hat: new URL('../assets/audio/kits/warm/hat.wav', import.meta.url),
-  },
-  electronic: {
-    kick: new URL('../assets/audio/kits/electronic/kick.wav', import.meta.url),
-    snare: new URL('../assets/audio/kits/electronic/snare.wav', import.meta.url),
-    hat: new URL('../assets/audio/kits/electronic/hat.wav', import.meta.url),
-  },
-  dry: {
-    kick: new URL('../assets/audio/kits/dry/kick.wav', import.meta.url),
-    snare: new URL('../assets/audio/kits/dry/snare.wav', import.meta.url),
-    hat: new URL('../assets/audio/kits/dry/hat.wav', import.meta.url),
   },
 }
 
@@ -46,6 +31,7 @@ let finishPlayback: (() => void) | undefined
 let reportCompletedBars: (() => void) | undefined
 let progressTimer: ReturnType<typeof setInterval> | undefined
 let updatePatternLooping: ((enabled: boolean) => void) | undefined
+let updateActivePattern: ((pattern: AudioPattern) => void) | undefined
 let pendingPatternLooping: boolean | undefined
 
 function getContext() {
@@ -115,6 +101,7 @@ export function stopPlayback() {
   clearInterval(progressTimer)
   progressTimer = undefined
   updatePatternLooping = undefined
+  updateActivePattern = undefined
   pendingPatternLooping = undefined
   generation++
   for (const source of activeSources) {
@@ -136,6 +123,10 @@ export function setPatternLooping(enabled: boolean) {
   else if (busy) pendingPatternLooping = enabled
 }
 
+export function updatePlayingPattern(pattern: AudioPattern) {
+  updateActivePattern?.(pattern)
+}
+
 // Resolves after one complete bar (including the last sound's tail), or on Reset.
 export async function playPattern(
   pattern: AudioPattern,
@@ -145,6 +136,7 @@ export async function playPattern(
   onCompletedBars?: (count: number) => void,
   allowLoopChanges = false,
   onBeat?: (beat: PlaybackBeat) => void,
+  allowPatternChanges = false,
 ) {
   if (busy) return
   if (!Number.isFinite(bpm) || bpm <= 0 || !Number.isInteger(steps) || steps <= 0) {
@@ -178,30 +170,41 @@ export async function playPattern(
     output.gain.value = 0.55
     output.connect(audio.destination)
 
-    if (usesLoopBuffer) {
+    const buildBar = (nextPattern: AudioPattern) => {
       // Bake one periodic bar from cached samples. Native buffer looping keeps
       // every repetition on the audio clock, with no JS timer or restart gap.
-      const frames = Math.round(steps * stepInterval * audio.sampleRate)
-      const bar = audio.createBuffer(1, frames, audio.sampleRate)
+      const frames = Math.round(steps * stepInterval * audio!.sampleRate)
+      const bar = audio!.createBuffer(1, frames, audio!.sampleRate)
       const mix = bar.getChannelData(0)
       for (const instrument of instruments) {
         const buffer = buffers[instrument]
         const sample = buffer.getChannelData(0)
-        for (const step of pattern[instrument]) {
+        for (const step of nextPattern[instrument]) {
           if (!Number.isInteger(step) || step < 0 || step >= steps) continue
-          const offset = Math.round(step * stepInterval * audio.sampleRate)
+          const offset = Math.round(step * stepInterval * audio!.sampleRate)
           for (let i = 0; i < sample.length; i++) {
             // Wrap tails over the boundary rather than truncating the sound.
             mix[(offset + i) % frames] += sample[i]
           }
         }
       }
-      periodicSource = audio.createBufferSource()
-      periodicSource.buffer = bar
-      periodicSource.loop = true
-      periodicSource.connect(output)
-      activeSources.push(periodicSource)
-      periodicSource.start(startTime)
+      return bar
+    }
+
+    const createPeriodicSource = (nextPattern: AudioPattern, when: number) => {
+      const source = audio!.createBufferSource()
+      source.buffer = buildBar(nextPattern)
+      source.loop = true
+      source.connect(output!)
+      activeSources.push(source)
+      source.start(when)
+      return source
+    }
+
+    if (usesLoopBuffer) {
+      // Bake one periodic bar from cached samples. Native buffer looping keeps
+      // every repetition on the audio clock, with no JS timer or restart gap.
+      periodicSource = createPeriodicSource(pattern, startTime)
     } else for (const instrument of instruments) {
       for (const step of pattern[instrument]) {
         if (!Number.isInteger(step) || step < 0 || step >= steps) continue
@@ -218,6 +221,27 @@ export async function playPattern(
     const barDuration = usesLoopBuffer
       ? Math.round(steps * stepInterval * audio.sampleRate) / audio.sampleRate
       : steps * stepInterval
+
+    if (allowPatternChanges && periodicSource) {
+      let currentSource = periodicSource
+      let pendingSource: AudioBufferSourceNode | undefined
+      let pendingBoundary = 0
+      updateActivePattern = nextPattern => {
+        if (request !== generation) return
+        const elapsed = Math.max(0, audio!.currentTime - startTime)
+        const boundary = startTime + (Math.floor((elapsed + 1e-9) / barDuration) + 1) * barDuration
+        if (pendingSource) {
+          pendingSource.stop(pendingBoundary)
+          pendingSource = undefined
+        }
+        const replacement = createPeriodicSource(nextPattern, boundary)
+        replacement.stop(startTime + barDuration * 1_000_000)
+        currentSource.stop(boundary)
+        pendingSource = replacement
+        pendingBoundary = boundary
+        currentSource = replacement
+      }
+    }
     let reportedBeat = -1
     if (onCompletedBars || onBeat) {
       let reported = 0
